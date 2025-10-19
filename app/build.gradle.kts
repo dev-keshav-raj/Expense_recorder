@@ -14,19 +14,21 @@ android {
         applicationId = "com.kr.expenserecoder"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 5
+        versionName = "1.12.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            isDebuggable = false
         }
     }
     compileOptions {
@@ -72,7 +74,7 @@ dependencies {
 
     // Jetpack Compose
     implementation ("androidx.compose.ui:ui:1.5.1")
-    implementation ("androidx.compose.material3:material3:1.1.1")
+//    implementation ("androidx.compose.material3:material3:1.1.1")
     implementation ("androidx.compose.ui:ui-tooling-preview:1.5.1")
     debugImplementation ("androidx.compose.ui:ui-tooling:1.5.1")
 
@@ -84,10 +86,29 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.3.1")
 
     // new one 
-    implementation("androidx.compose.material3:material3")
+//    implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("androidx.navigation:navigation-compose:2.7.6")
+
+    //datastore
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    // for gif
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("io.coil-kt:coil-gif:2.4.0")
+
+    // for swipe refresh
+    // Jetpack Compose Material3
+    implementation("androidx.compose.material3:material3:1.3.1")
+//    implementation("androidx.compose.material3:material3-pullrefresh:1.3.1")
+    
+    //coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+
+
+
 
 
 }

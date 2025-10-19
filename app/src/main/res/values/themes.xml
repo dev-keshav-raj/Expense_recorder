@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+
+    <!-- Define the theme used during the splash screen phase -->
+<!--    <style name="Theme.AppSplash" parent="Theme.SplashScreen">-->
+<!--        &lt;!&ndash; Set a background color that matches the start of your video, if possible. &ndash;&gt;-->
+<!--        &lt;!&ndash; Using black might hide the flash better than white. &ndash;&gt;-->
+<!--        <item name="android:windowSplashScreenBackground">@color/black</item>-->
+
+<!--        &lt;!&ndash; Optional: Hide the icon/branding so only the background shows &ndash;&gt;-->
+<!--        <item name="windowSplashScreenAnimatedIcon">@drawable/logo</item>-->
+
+<!--        &lt;!&ndash; Specify the theme to transition to (your main app theme) &ndash;&gt;-->
+<!--        <item name="postSplashScreenTheme">@style/Theme.ExpenseRecoder</item>-->
+<!--    </style>-->
+
+    <!-- Your main app theme (used after the splash is dismissed) -->
+
     <style name="Theme.ExpenseRecoder" parent="android:Theme.Material.Light.NoActionBar" />
 </resources>

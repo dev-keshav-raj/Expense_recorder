@@ -7,6 +7,9 @@ import kotlinx.coroutines.flow.Flow
 class MyRepository(private val dao: MyDao) {
     val allItems: Flow<List<Expense>> = dao.getAll()
 
+    fun getExpensesByCategories(categories: List<ExpenseCategory>) =
+        dao.getExpensesByCategories(categories)
+
     fun getAllByMonth(month: String): Flow<List<Expense>> {
         return dao.getAllByMonth(month)
     }
@@ -14,6 +17,11 @@ class MyRepository(private val dao: MyDao) {
     suspend fun insert(expense: Expense) {
         dao.insert(expense)
     }
+
+    suspend fun update(expense: Expense) {
+        dao.updateExpense(expense)
+    }
+
 
     suspend fun deleteAll() {
         dao.deleteAll()
@@ -27,4 +35,6 @@ class MyRepository(private val dao: MyDao) {
     suspend fun deleteItem(id: Long) {
         dao.deleteItem(id)
     }
+
+
 }

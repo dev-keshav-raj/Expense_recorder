@@ -9,6 +9,10 @@ interface MyDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(expense: Expense)
 
+    @Update
+    suspend fun updateExpense(expense: Expense)
+
+
     @Query("SELECT * FROM expenses ORDER BY date DESC, time DESC")
     fun getAll(): Flow<List<Expense>>
 
@@ -26,4 +30,14 @@ interface MyDao {
 
     @Query("DELETE FROM sqlite_sequence WHERE name='expenses'")
     suspend fun resetAutoIncrement()
+
+    @Query("SELECT * FROM expenses WHERE category IN (:categories)")
+    fun getExpensesByCategories(categories: List<ExpenseCategory>): Flow<List<Expense>>
+
+
+
+//    @Query("SELECT * FROM settings")
+//    fun getAll(): <List<settings>>
 }
+
+

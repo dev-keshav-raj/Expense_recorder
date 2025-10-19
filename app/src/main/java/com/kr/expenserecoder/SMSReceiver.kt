@@ -11,12 +11,24 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
+import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.ViewModelStoreOwner
+import com.kr.expenserecoder.ui.settings.MyViewModel
+import com.kr.expenserecoder.ui.settings.dataStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
+import androidx.datastore.preferences.core.booleanPreferencesKey
+
+private val AUTO_TRACKING_KEY: Preferences.Key<Boolean> =
+    booleanPreferencesKey("auto_tracking")
+
 
 class SMSReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -30,11 +42,24 @@ class SMSReceiver : BroadcastReceiver() {
                     val sender = smsMessage.displayOriginatingAddress
                     val messageBody = smsMessage.displayMessageBody
 
-                    // Only process bank debit transactions
-                    if (isBankDebitTransaction(sender, messageBody)) {
-                        val expense = parseDebitTransaction(messageBody)
-                        expense?.let {
-                            saveExpenseToDatabase(context, it)
+
+                    // ✅ Access DataStore directly instead of ViewModel
+                    val appContext = context.applicationContext
+                    val dataStore = (appContext as Application).dataStore
+
+                    CoroutineScope(Dispatchers.IO).launch {
+                        val isAutoTrackingEnabled = dataStore.data
+                            .map { prefs -> prefs[AUTO_TRACKING_KEY] ?: true }
+                            .first()  // ✅ get current value once
+
+                        if (isAutoTrackingEnabled) {
+                            // Only process bank debit transactions
+                            if (isBankDebitTransaction(sender, messageBody)) {
+                                val expense = parseDebitTransaction(messageBody)
+                                expense?.let {
+                                    saveExpenseToDatabase(context, it)
+                                }
+                            }
                         }
                     }
                 }
@@ -44,14 +69,17 @@ class SMSReceiver : BroadcastReceiver() {
 
     private fun isBankDebitTransaction(sender: String, message: String): Boolean {
         // Common Indian bank sender IDs
-//        val bankSenders = listOf(
-//            "SBIINB", "HDFCBANK", "ICICIBANK", "AXISBANK",
-//            "KOTAK", "YESBANK", "INDUSIND", "PAYTM", "GPAY",
-//            "PHONEPE", "AMAZONPAY", "SBI", "HDFC", "ICICI",
-//            "AXIS", "PNB", "BOB", "CANARA", "IOB","UPI"
-//        )
 
         val bankSenders = listOf(
+            // NEW added
+            "EQUTAS", "EQUITAS", // Equitas Small Finance Bank
+            "SLICT", "SLCEIT", "SLICIT", // SLICIT Small Finance Bank
+            "AU", "AUBANK", "AUBL", // AU Small Finance Bank
+            "FINSERV", "FINB", // Bajaj Finserv
+            "IDBI", "IDBIBANK", // IDBI Bank
+            "TMB", "TMBL", "TAMILNAD", // Tamilnad Mercantile Bank
+            "DCB", "DCBBANK", // DCB Bank
+
             // SBI group
             "SBI", "SBIINB", "SBIPSG", "SBICRD", "SBICRD", "SBIPAY","SBYONO","YONO",
             // HDFC
@@ -59,7 +87,7 @@ class SMSReceiver : BroadcastReceiver() {
             // ICICI
             "ICICIBANK", "ICICI", "ICICIPR", "ICICICR", "ICICIP",
             // Axis
-            "AXISBANK", "AXIS", "AXISUPI", "AXISCR",
+            "AXISBANK", "AXIS", "AXISUPI", "AXISCR","AXISBK",
             // Kotak
             "KOTAK", "KOTAKB", "KMBL", "KOTAKUPI",
             // Yes Bank
@@ -126,27 +154,38 @@ class SMSReceiver : BroadcastReceiver() {
             // Spotify
             "SPOTIFY", "SPOTIFYP",
             //Amazon Pay
-            "AMAZON", "AMAZONIN", "AMZPAY","APAY","PAY",
+            "AMAZON", "AMZPAY","APAY","PAY",
             // Others
             "CITI", "CITIBANK", "HSBC", "SCBANK", "STANDARDCHARTERED",
             "RBL", "RBLBNK", "RBLCRD",
             "KVB", "SOUTHIND", "UCO", "SYND", "CORP", "INDIANBANK"
         )
 
+        val dltSenderPattern = Regex("^[A-Z]{2}-[A-Z0-9]{4,9}-[ST]$") // Generic pattern for Bank SMS senders
 
         // Debit keywords only
         val debitKeywords = listOf(
-            "debited", "withdrawn", "spent", "paid", "purchase",
-            "debit", "payment", "transaction", "charged"
+            "debited", "withdrawn", "spent", "paid", "purchase", "debit",
+            "payment", "transaction", "charged", "sent", "transferred",
+            "transfer", "withdrawal", "deducted", "sent to", "to",
+            "auto-debit", "upi", "purchase at", "purchase from", "mandate" ,"auto-pay"
         )
 
-        val isBankSender = bankSenders.any { sender.contains(it, ignoreCase = true) }
+//        val isBankSender =
+//            dltSenderPattern.matches(sender) || bankSenders.any { sender.contains(it, ignoreCase = true) }
+////            dltSenderPattern.matches(sender)
+
+        val normalizedSender = sender.uppercase()
+        val isBankSender = dltSenderPattern.matches(sender) ||
+                bankSenders.any { normalizedSender.contains(it) }
+
+
         val isDebitTransaction = debitKeywords.any {
             message.contains(it, ignoreCase = true)
         }
 
         // Exclude credit transactions
-        val creditKeywords = listOf("credited", "deposited", "received", "refund")
+        val creditKeywords = listOf("credited", "deposited", "received", "refund","OTP")
         val isCreditTransaction = creditKeywords.any {
             message.contains(it, ignoreCase = true)
         }
@@ -157,11 +196,16 @@ class SMSReceiver : BroadcastReceiver() {
     private fun parseDebitTransaction(message: String): Expense? {
         try {
             // Extract amount - Common patterns in Indian bank SMS
-//            val amountPattern = """(?:Rs\.?\s*|INR\s*)?(\d+(?:,\d{3})*(?:\.\d{2})?)""".toRegex()
-            val amountPattern = """(?:Rs\.?\s*|INR\s*|₹\s*)?(\d+(?:,\d{3})*(?:\.\d{1,2})?)""".toRegex()
+
+            // Require Rs/INR/₹ before the amount
+//            val amountPattern = """(?:Rs\.?\s*|INR\s*|₹\s+)(\d+(?:,\d{3})*(?:\.\d{1,2})?)""".toRegex()
+            val amountPattern = """(?i)(?:rs\.?\s*|inr\s*|₹\s*)(\d+(?:,\d{3})*(?:\.\d{1,2})?)""".toRegex()
+
+
 
             val amountMatch = amountPattern.find(message)
             val amount = amountMatch?.groupValues?.get(1)?.replace(",", "")?.toDoubleOrNull()
+
 
             if (amount == null || amount <= 0) return null
 
@@ -248,10 +292,11 @@ class SMSReceiver : BroadcastReceiver() {
                     text.contains("mobile") || text.contains("recharge") ||
                     text.contains("bill") || text.contains("payment") -> ExpenseCategory.UTILITIES
 
-            else -> ExpenseCategory.SHOPPING // Default category
+            else -> ExpenseCategory.TRANSFER // Default category
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     private fun saveExpenseToDatabase(context: Context, expense: Expense) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -275,6 +320,7 @@ class SMSReceiver : BroadcastReceiver() {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
     @SuppressLint("ServiceCast")
     private fun showExpenseNotification(context: Context, expense: Expense) {
         // Create notification channel first
@@ -282,14 +328,19 @@ class SMSReceiver : BroadcastReceiver() {
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+        val appContext = context.applicationContext
+        val intent = Intent(appContext, AudioService::class.java)
+        intent.putExtra("resId", R.raw.cashsound)
+        appContext.startForegroundService(intent)
+
         val notification = NotificationCompat.Builder(context, "expense_auto_add")
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Use your app icon
+            .setSmallIcon(R.drawable.logo) // Use your app icon
             .setContentTitle("Expense Auto-Added")
-            .setContentText("${expense.category.displayName}: $${expense.amount} - ${expense.description}")
+            .setContentText("${expense.category.displayName}: ₹${expense.amount} - ${expense.description}")
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setAutoCancel(true)
             .setStyle(NotificationCompat.BigTextStyle()
-                .bigText("Amount: $${expense.amount}\nCategory: ${expense.category.displayName}\nDescription: ${expense.description}"))
+                .bigText("Amount: ₹${expense.amount}\nCategory: ${expense.category.displayName}\nDescription: ${expense.description}"))
             .build()
 
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
@@ -412,7 +463,4 @@ fun AutoTrackingSettings() {
         }
     }
 }
-
-
-
  */

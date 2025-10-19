@@ -15,7 +15,8 @@ data class Expense constructor(
     val category: ExpenseCategory,
     val description: String,
     val date: String ,
-    val time: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) LocalTime.now().toString() else "12:00:00"
+    val time: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) LocalTime.now().toString() else "12:00:00",
+
 ) {
     // Helper properties for UI
     val localDate: LocalDate?
@@ -23,8 +24,9 @@ data class Expense constructor(
             try { LocalDate.parse(date) } catch (e: Exception) { null }
         } else null
 
-    val localTime: LocalTime?
-        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            try { LocalTime.parse(time) } catch (e: Exception) { null }
-        } else null
+//    val localTime: LocalTime?
+//        get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+//            try { LocalTime.parse(time) } catch (e: Exception) { null }
+//        } else null
 }
+

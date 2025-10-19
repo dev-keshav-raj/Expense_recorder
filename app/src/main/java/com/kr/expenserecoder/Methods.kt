@@ -1,5 +1,6 @@
 package com.kr.expenserecoder
 
+import com.kr.expenserecoder.R
 import android.content.Context
 import android.os.Build
 import android.os.Environment
@@ -52,24 +53,13 @@ import android.graphics.Paint
 import androidx.compose.animation.core.EaseOutCubic
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.PaintingStyle.Companion.Stroke
-import java.time.format.DateTimeFormatter
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.automirrored.filled.TrendingUp
-import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.sp
 import kotlin.math.cos
@@ -77,7 +67,21 @@ import kotlin.math.sin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import android.content.ContentValues
 import android.provider.MediaStore
-import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.with
+import androidx.compose.material3.Checkbox
+import androidx.compose.ui.platform.LocalContext
+import coil.request.ImageRequest
+import coil.compose.AsyncImage
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.material3.CheckboxDefaults
+import kotlinx.coroutines.delay
 
 // Function to get month name from number
 @RequiresApi(Build.VERSION_CODES.O)
@@ -86,6 +90,15 @@ fun getMonthName(number: Int): String {
         .withMonth(number)
         .month
         .getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+}
+
+fun getCurrentTime(): String {
+    val current = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        java.time.LocalTime.now()
+    } else {
+        return "12:00:00"
+    }
+    return current.toString()
 }
 
 // User confirmation dialog
@@ -100,11 +113,19 @@ fun ConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text(text = title, fontWeight = FontWeight.Bold)
+            Row{
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(R.drawable.warning) // your GIF
+                        .build(),
+                    contentDescription = "Warning Animation",
+                    modifier = Modifier.size(30.dp)
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(title)
+            }
         },
-        text = {
-            Text(message, color = color)
-        },
+        text = { Text(message,color = color) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text("Yes")
@@ -243,16 +264,40 @@ fun MonthWithMenu(
     onDeleteAll: () -> Unit,
     onDeleteMonth: () -> Unit,
     onSave: () -> Unit,
+    onSaveToday: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
 
     // Key = Name, Value = Number
-    val months = mapOf(
-        "January" to 1, "February" to 2, "March" to 3, "April" to 4,
-        "May" to 5, "June" to 6, "July" to 7, "August" to 8,
-        "September" to 9, "October" to 10, "November" to 11, "December" to 12
+
+    val months = listOf(
+        "January" to 1,
+        "February" to 2,
+        "March" to 3,
+        "April" to 4,
+        "May" to 5,
+        "June" to 6,
+        "July" to 7,
+        "August" to 8,
+        "September" to 9,
+        "October" to 10,
+        "November" to 11,
+        "December" to 12
     )
+   var selectedMonth2 by remember { mutableStateOf(10) }
+//    val selectedMonthName = months.firstOrNull { it.second == selectedMonth }?.first ?: "Select Month"
+
+
+    // Rotate the list so it starts from the selected month:
+    val rotatedMonths = remember(selectedMonth2) {
+        val index = months.indexOfFirst { it.second == selectedMonth2-1}
+        if (index != -1) {
+            months.drop(index) + months.take(index)
+        } else {
+            months
+        }
+    }
 
     Row(
         modifier = modifier
@@ -270,26 +315,30 @@ fun MonthWithMenu(
         ) {
             OutlinedTextField(
                 value = selectedMonth,
-                onValueChange = { }, // disable manual typing
+                onValueChange = {},
                 readOnly = true,
-                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center), // center text
+                textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center),
                 shape = RoundedCornerShape(24.dp),
-                trailingIcon = {
-                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
-                },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 modifier = Modifier
-                    .menuAnchor()
+                    .menuAnchor() // ✅ only valid inside ExposedDropdownMenuBox
                     .fillMaxWidth()
             )
             ExposedDropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                months.forEach { (name, number) ->
+                rotatedMonths.forEach { (name, number) ->
                     DropdownMenuItem(
-                        text = { Text(name) },
+                        text = {
+                            Text(
+                                name,
+                                color = if (number == selectedMonth2) Color(0xFF8CD3E5) else Color.Unspecified
+                            )
+                        },
                         onClick = {
                             onMonthSelected(number)
+                            selectedMonth2 = number
                             expanded = false
                         }
                     )
@@ -304,37 +353,11 @@ fun MonthWithMenu(
             onDeleteAll = onDeleteAll,
             onDeleteMonth = onDeleteMonth,
             onSave = onSave,
+            onSaveToday = onSaveToday,
         )
     }
 }
 
-
-// Pie chart
-//@Composable
-//fun PieChart(
-//    data: Map<String, Float>, // category -> amount
-//    modifier: Modifier = Modifier.size(130.dp)
-//) {
-//    val total = data.values.sum()
-//    val maxEntry = data.maxByOrNull { it.value }
-//
-//    Canvas(modifier = modifier) {
-//        var startAngle = -90f
-//        data.forEach { (category, value) ->
-//            val sweepAngle = (value / total) * 360f
-//            // Highlight max with border
-//            drawArc(
-//                color = if (value == maxEntry?.value) Color.Red else Color(
-//                    (0xFF000000..0xFFFFFFFF).random()
-//                ),
-//                startAngle = startAngle,
-//                sweepAngle = sweepAngle,
-//                useCenter = true
-//            )
-//            startAngle += sweepAngle
-//        }
-//    }
-//}
 
 @Composable
 fun PieChart(
@@ -481,9 +504,11 @@ fun ThreeDotMenu(
     onDeleteAll: () -> Unit,
     onDeleteMonth: () -> Unit,
     onSave: () -> Unit,
+    onSaveToday: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var Showdialog by remember { mutableStateOf(false) }
+    var Showdialog_month by remember { mutableStateOf(false) }
+    var Showdialog_all by remember { mutableStateOf(false) }
 
     Box() {
         // Three-dot icon
@@ -502,36 +527,58 @@ fun ThreeDotMenu(
             DropdownMenuItem(
                 text = { Text("Delete All") },
                 onClick = {
-                    Showdialog = true
+                    Showdialog_all = true
                 }
             )
-            if(Showdialog) {
+//            ⚠️
+            if(Showdialog_all) {
             ConfirmDialog(
-                title = "⚠\uFE0F Confirm Delete All",
+                title = "Confirm Delete All",
                 message = "Are you sure you want to delete all records? This action cannot be undone.",
                 color = Color.Red,
                 onConfirm = {
                     onDeleteAll()
                     expanded = false
-                    Showdialog = false
+                    Showdialog_all = false
                 },
-                onDismiss = { Showdialog = false
+                onDismiss = { Showdialog_all = false
                               expanded = false }
-                    )
+            )
             }
 
             DropdownMenuItem(
                 text = { Text("Delete current month") },
                 onClick = {
-                    expanded = false
-                    onDeleteMonth()
+                    Showdialog_month = true
+
                 }
             )
+            if(Showdialog_month) {
+                ConfirmDialog(
+                    title = "Confirm Delete ",
+                    message = "Are you sure you want to delete this month records? This action cannot be undone.",
+                    color = Color.Red,
+                    onConfirm = {
+                        onDeleteMonth()
+                        expanded = false
+                        Showdialog_month = false
+                    },
+                    onDismiss = { Showdialog_month = false
+                        expanded = false }
+                )
+            }
             DropdownMenuItem(
-                text = { Text("Save to PDF") },
+                text = { Text("Save to PDF ( Monthly )") },
                 onClick = {
                     expanded = false
                     onSave()
+                }
+            )
+            DropdownMenuItem(
+                text = { Text("Save to PDF ( Today )") },
+                onClick = {
+                    expanded = false
+                    onSaveToday()
                 }
             )
         }
@@ -539,5 +586,74 @@ fun ThreeDotMenu(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun CategoryCheckboxes(
+    selectedCategories: List<ExpenseCategory>,
+    onToggle: (ExpenseCategory) -> Unit
+) {
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            item{
+                ExpenseCategory.values().forEach { category ->
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        Checkbox(
+                            checked = selectedCategories.contains(category),
+                            onCheckedChange = { onToggle(category) },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = Color(0xFF789AA1),      // color when checked
+                                uncheckedColor = Color.Gray,     // color when unchecked
+                                checkmarkColor = Color.White      // color of the checkmark
+                            ),
+                        )
+                        Icon(
+                            imageVector = category.icon,
+                            contentDescription = category.displayName,
+                            tint = category.color,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                    }
+                }
+            }
+        }
+}
+
+@OptIn(ExperimentalAnimationApi::class)
+@Composable
+fun SlidingTextAnimation(texts: List<String>, modifier: Modifier = Modifier, style : androidx.compose.ui.text.TextStyle = MaterialTheme.typography.titleMedium) {
+    var currentIndex by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(4000) // Wait 2 seconds between text changes
+            currentIndex = (currentIndex + 1) % texts.size
+        }
+    }
+
+    AnimatedContent(
+        targetState = currentIndex,
+        transitionSpec = {
+            slideInVertically { height -> height } + fadeIn() with
+                    slideOutVertically { height -> -height } + fadeOut()
+        },
+        modifier = modifier
+    ) { targetIndex ->
+        Text(
+            text = texts[targetIndex],
+            style = style,
+            modifier = Modifier.fillMaxWidth(),
+            fontWeight = FontWeight.SemiBold
+
+        )
+    }
+}
 
 
